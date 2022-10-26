@@ -1,3 +1,0 @@
-First training accuracy: 82%
-
-Second training accuracy: 
