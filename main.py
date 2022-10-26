@@ -76,7 +76,7 @@ class CNN(nn.Module):
         x = x.view(-1, 9 * 9 * 100) 
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-        x = F.relu(self.fc3(x))
+        x = self.fc3(x)
         return x
 
 if __name__ == "__main__":
@@ -91,6 +91,7 @@ if __name__ == "__main__":
     def training_loop():
         training_start = time()
         for epoch in range(epochs):
+            loss = 0.0
             print('epoch')
             start = time()
             model.train() 
@@ -109,11 +110,12 @@ if __name__ == "__main__":
 
         training_end = time()
         print(f'training done in {int(training_end - training_start)} seconds, or {int(training_end - training_start) / 60} minutes')
-        torch.save(model.state_dict(), './Model_DogvsCat.pth')
+        torch.save(model.state_dict(), './Model.pth')
     def testing_loop():
-        model.load_state_dict(torch.load('./Model_DogvsCat.pth'))
+        model.load_state_dict(torch.load('./Model.pth'))
         correct = 0
         total = 0
+        model.eval()
         # since we're not training, we don't need to calculate the gradients for our outputs
         with torch.no_grad():
             for data in testloader:
@@ -124,14 +126,14 @@ if __name__ == "__main__":
                 _, predicted = torch.max(outputs.data, 1)
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
-
+            print(predicted)
         print(f'Accuracy of the network on test images: {100 * correct // total} %')
 
 
-    training_loop()
+    #training_loop()
 
         # torch.save(model.state_dict(), PATH)
     
 
 
-    #testing_loop()
+    testing_loop()
