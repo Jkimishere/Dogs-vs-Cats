@@ -13,28 +13,18 @@ from time import time
 #use TEMP for values not calculated yet.
 TEMP = 100
 
-class custom_test_loader(data.Dataset):
-    def __init__(self, root, transforms):
-        super().__init__()
-        self.root = root
-        self.transforms = transforms
-        self.imgs = os.listdir(root)
-
-    def __len__(self):
-        return len(self.imgs)
-
-    def __getitem__(self,idx):
-        img_loc = os.path.join(self.root, self.imgs[idx])
-        image = Image.open(img_loc).convert("RGB")
-        tensor_image = self.transform(image)
-        return tensor_image
 
 class custom_train_loader(data.Dataset):
-    def __init__(self, root, transforms):
+    def __init__(self, root, transforms, train):
         super().__init__()
         self.root = root
         self.transforms = transforms
         self.imgs = os.listdir(root)
+        if train:
+            self.imgs = self.imgs[0:int(len(self.imgs) * 0.9)]
+        else:
+            self.imgs = self.imgs[int(len(self.imgs) * 0.9):]
+        self.train = train
 
     def __len__(self):
         return len(self.imgs)
@@ -54,18 +44,17 @@ class custom_train_loader(data.Dataset):
 
 
 
-
 transform = transforms.Compose([transforms.Resize((100,100)),
                                 transforms.ToTensor()])
-trainset = custom_train_loader('../train', transforms=transform)
+trainset = custom_train_loader('../train', transforms=transform, train= True)
 trainloader = torch.utils.data.DataLoader(trainset, 
-                                         batch_size=1000, 
+                                         batch_size=100, 
                                          shuffle=True, num_workers=4)
 
 
-testset = custom_test_loader('../test1', transforms=transform)
+testset = custom_train_loader('../train', transforms=transform, train= False)
 testloader = torch.utils.data.DataLoader(testset, 
-                                         batch_size=1000, 
+                                         batch_size=100, 
                                          shuffle=True, num_workers=4)
 
 
@@ -77,9 +66,8 @@ class CNN(nn.Module):
         self.conv3 = nn.Conv2d(16, 100, 5)
         self.pool = nn.MaxPool2d(2,2)
         self.fc1 = nn.Linear(9 * 9 * 100, 100)
-        self.fc2 = nn.Linear(100, 40)
-        self.fc3 = nn.Linear(40, 10)
-        self.fc4 = nn.Linear(10, 2)
+        self.fc2 = nn.Linear(100, 10)
+        self.fc3 = nn.Linear(10, 2)
 
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x))) # 100 * 100 * 3 -> 96 * 96 * 6 -> 48 * 48 * 6
@@ -89,24 +77,23 @@ class CNN(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
-        x = F.relu(self.fc4(x))
         return x
 
 if __name__ == "__main__":
     model = CNN().to('cuda')
-    epochs = 10
+    epochs = 30
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     loss_fn = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr = 0.01)
+    optimizer = optim.SGD(model.parameters(), lr = 0.01, momentum=0.9)
 
 
 
     def training_loop():
+        training_start = time()
         for epoch in range(epochs):
             print('epoch')
             start = time()
             model.train() 
-            print(len(trainloader))
             for i, data in enumerate(trainloader):
                 img, label = data
                 if i % 100 == 0:
@@ -118,12 +105,33 @@ if __name__ == "__main__":
                 optimizer.step()
             
             end = time()
-            print(f'epoch {epoch} ended in {end - start} seconds')
+            print(f'epoch {epoch} ended with loss {loss} ||| epoch {epoch} runtime : {end - start} seconds')
 
-        print('training done!')
+        training_end = time()
+        print(f'training done in {int(training_end - training_start)} seconds, or {int(training_end - training_start) / 60} minutes')
+        torch.save(model.state_dict(), './Model_DogvsCat.pth')
+    def testing_loop():
+        model.load_state_dict(torch.load('./Model_DogvsCat.pth'))
+        correct = 0
+        total = 0
+        # since we're not training, we don't need to calculate the gradients for our outputs
+        with torch.no_grad():
+            for data in testloader:
+                images, labels = data
+                # calculate outputs by running images through the network
+                outputs = model(images)
+                # the class with the highest energy is what we choose as prediction
+                _, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
 
-        torch.save(model.state_dict(), './Model.pth')
-            
+        print(f'Accuracy of the network on test images: {100 * correct // total} %')
 
 
     training_loop()
+
+        # torch.save(model.state_dict(), PATH)
+    
+
+
+    #testing_loop()
