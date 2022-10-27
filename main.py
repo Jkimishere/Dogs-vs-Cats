@@ -20,6 +20,8 @@ class custom_train_loader(data.Dataset):
         self.root = root
         self.transforms = transforms
         self.imgs = os.listdir(root)
+        import random
+        random.shuffle(self.imgs)
         if train:
             self.imgs = self.imgs[0:int(len(self.imgs) * 0.9)]
         else:
@@ -31,7 +33,7 @@ class custom_train_loader(data.Dataset):
 
     def __getitem__(self,idx):
         img_loc = os.path.join(self.root, self.imgs[idx])
-        file_split = img_loc.split('.')
+        file_split = self.imgs[idx].split('.')
         label = file_split[0]
         if label.lower() == 'dog':
             label = 0
@@ -48,16 +50,14 @@ transform = transforms.Compose([transforms.Resize((100,100)),
                                 transforms.ToTensor()])
 trainset = custom_train_loader('../train', transforms=transform, train= True)
 trainloader = torch.utils.data.DataLoader(trainset, 
-                                         batch_size=100, 
+                                         batch_size=64, 
                                          shuffle=True, num_workers=4)
 
 
 testset = custom_train_loader('../train', transforms=transform, train= False)
 testloader = torch.utils.data.DataLoader(testset, 
-                                         batch_size=100, 
+                                         batch_size=1, 
                                          shuffle=True, num_workers=4)
-
-
 class CNN(nn.Module):
     def __init__(self):
         super().__init__()
@@ -76,12 +76,13 @@ class CNN(nn.Module):
         x = x.view(-1, 9 * 9 * 100) 
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-        x = self.fc3(x)
+        x = (self.fc3(x))
         return x
 
 if __name__ == "__main__":
     model = CNN().to('cuda')
-    epochs = 30
+    model.load_state_dict(torch.load('./Model.pth'))
+    epochs = 10
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     loss_fn = nn.CrossEntropyLoss()
     optimizer = optim.SGD(model.parameters(), lr = 0.01, momentum=0.9)
@@ -92,7 +93,7 @@ if __name__ == "__main__":
         training_start = time()
         for epoch in range(epochs):
             loss = 0.0
-            print('epoch')
+            print(f'epoch {epoch}')
             start = time()
             model.train() 
             for i, data in enumerate(trainloader):
@@ -124,10 +125,9 @@ if __name__ == "__main__":
                 outputs = model(images)
                 # the class with the highest energy is what we choose as prediction
                 _, predicted = torch.max(outputs.data, 1)
-                total += labels.size(0)
+                total += 1
                 correct += (predicted == labels).sum().item()
-            print(predicted)
-        print(f'Accuracy of the network on test images: {100 * correct // total} %')
+        print(f'Accuracy of the network on test images: {100 * correct // total} %      || correct : {correct}, total : {total}')
 
 
     #training_loop()
@@ -137,3 +137,4 @@ if __name__ == "__main__":
 
 
     testing_loop()
+
