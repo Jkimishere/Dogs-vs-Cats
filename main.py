@@ -10,27 +10,29 @@ import os
 from PIL import Image
 from time import time
 
-#use TEMP for values not calculated yet.
-TEMP = 100
 
 
-class custom_train_loader(data.Dataset):
+#dataloader for files like (category).(number).(extension) {example: dog.1.jpg}
+class category_in_filename_data_loader(data.Dataset):
     def __init__(self, root, transforms, train):
         super().__init__()
         self.root = root
         self.transforms = transforms
         self.imgs = os.listdir(root)
         import random
-        random.shuffle(self.imgs)
+        random.shuffle(self.imgs) #shuffled the files because os.listdir is alphabetically ordered
         if train:
-            self.imgs = self.imgs[0:int(len(self.imgs) * 0.9)]
+            self.imgs = self.imgs[0:int(len(self.imgs) * 0.9)] #split images(first 90%)
         else:
-            self.imgs = self.imgs[int(len(self.imgs) * 0.9):]
+            self.imgs = self.imgs[int(len(self.imgs) * 0.9):] #split images(last 10%)
         self.train = train
 
+
+    #length function
     def __len__(self):
         return len(self.imgs)
 
+    #get item function
     def __getitem__(self,idx):
         img_loc = os.path.join(self.root, self.imgs[idx])
         file_split = self.imgs[idx].split('.')
@@ -39,22 +41,24 @@ class custom_train_loader(data.Dataset):
             label = 0
         else:
             label = 1
-        image = Image.open(img_loc).convert("RGB")
+        #opening image and applying transforms
+        image = Image.open(img_loc).convert("RGB") 
         tensor_image = self.transforms(image)
-        tensor_label = torch.tensor(label) 
+        tensor_label = torch.tensor(label)
+
         return tensor_image.to('cuda'), tensor_label.to('cuda')
 
 
 
 transform = transforms.Compose([transforms.Resize((100,100)),
                                 transforms.ToTensor()])
-trainset = custom_train_loader('../train', transforms=transform, train= True)
+trainset = category_in_filename_data_loader('../train', transforms=transform, train= True)
 trainloader = torch.utils.data.DataLoader(trainset, 
                                          batch_size=64, 
                                          shuffle=True, num_workers=4)
 
 
-testset = custom_train_loader('../train', transforms=transform, train= False)
+testset = category_in_filename_data_loader('../train', transforms=transform, train= False)
 testloader = torch.utils.data.DataLoader(testset, 
                                          batch_size=1, 
                                          shuffle=True, num_workers=4)
